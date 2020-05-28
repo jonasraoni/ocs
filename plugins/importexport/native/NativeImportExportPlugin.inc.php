@@ -26,7 +26,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 	 * Called as a plugin is registered to the registry
 	 * @param $category String Name of category plugin was registered to
 	 * @return boolean True iff plugin initialized successfully; if false,
-	 * 	the plugin will not be registered.
+	 *	the plugin will not be registered.
 	 */
 	function register($category, $path) {
 		$success = parent::register($category, $path);
@@ -75,7 +75,8 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 				$this->setBreadcrumbs(array(), true);
 				$publishedPaperDao =& DAORegistry::getDAO('PublishedPaperDAO');
 				$rangeInfo = Handler::getRangeInfo('papers');
-				$paperIds = $publishedPaperDao->getPublishedPaperIdsAlphabetizedBySchedConf($conference->getId(), $schedConf->getId());
+				// $paperIds = $publishedPaperDao->getPublishedPaperIdsAlphabetizedBySchedConf($conference->getId(), $schedConf->getId());
+				$paperIds = $publishedPaperDao->getPublishedPaperIdsAlphabetizedBySchedConf(1, 1);
 				$totalPapers = count($paperIds);
 				if ($rangeInfo->isValid()) $paperIds = array_slice($paperIds, $rangeInfo->getCount() * ($rangeInfo->getPage()-1), $rangeInfo->getCount());
 				import('core.VirtualArrayIterator');
@@ -106,11 +107,11 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 					$context['track'] = $trackDao->getTrack($trackId);
 				}
 
- 				if (!$temporaryFile) {
- 					$templateMgr->assign('error', 'plugins.importexport.native.error.uploadFailed');
- 					return $templateMgr->display($this->getTemplatePath() . 'importError.tpl');
- 				}
- 
+				if (!$temporaryFile) {
+					$templateMgr->assign('error', 'plugins.importexport.native.error.uploadFailed');
+					return $templateMgr->display($this->getTemplatePath() . 'importError.tpl');
+				}
+
 				$doc =& $this->getDocument($temporaryFile->getFilePath());
 
 				if (substr($this->getRootNodeName($doc), 0, 5) === 'paper') {
@@ -141,10 +142,10 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 		}
 	}
 
-	function exportPaper(&$schedConf, &$track, &$paper, $outputFile = null) {
+	function exportPaper(&$schedConf, &$track, &$paper, $outputFile = null, $opts = array()) {
 		$this->import('NativeExportDom');
 		$doc =& XMLCustomWriter::createDocument('paper', NATIVE_DTD_ID, NATIVE_DTD_URL);
-		$paperNode =& NativeExportDom::generatePaperDom($doc, $schedConf, $track, $paper);
+		$paperNode =& NativeExportDom::generatePaperDom($doc, $schedConf, $track, $paper, $opts);
 		XMLCustomWriter::appendChild($doc, $paperNode);
 
 		if (!empty($outputFile)) {
@@ -160,7 +161,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 		return true;
 	}
 
-	function exportPapers(&$results, $outputFile = null) {
+	function exportPapers(&$results, $outputFile = null, $opts = array()) {
 		$this->import('NativeExportDom');
 		$doc =& XMLCustomWriter::createDocument('papers', NATIVE_DTD_ID, NATIVE_DTD_URL);
 		$papersNode =& XMLCustomWriter::createElement($doc, 'papers');
@@ -171,7 +172,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 			$track =& $result['track'];
 			$conference =& $result['conference'];
 			$schedConf =& $result['schedConf'];
-			$paperNode =& NativeExportDom::generatePaperDom($doc, $schedConf, $track, $paper);
+			$paperNode =& NativeExportDom::generatePaperDom($doc, $schedConf, $track, $paper, $opts);
 			XMLCustomWriter::appendChild($papersNode, $paperNode);
 		}
 
@@ -231,8 +232,9 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 	/**
 	 * Execute import/export tasks using the command-line interface.
 	 * @param $args Parameters to the plugin
-	 */ 
+	 */
 	function executeCLI($scriptName, &$args) {
+		$opts = $this->parseOpts($args, ['no-embed', 'use-file-urls', 'clobber']);
 		$command = array_shift($args);
 		$xmlFile = array_shift($args);
 		$conferencePath = array_shift($args);
@@ -331,6 +333,10 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 						$paperId = array_shift($args);
 						$publishedPaper =& $publishedPaperDao->getPublishedPaperByBestPaperId($schedConf->getId(), $paperId);
 						if ($publishedPaper == null) {
+							$publishedPaper =& $publishedPaperDao->getPublishedPaperByPaperId($paperId);
+						}
+
+						if ($publishedPaper == null) {
 							echo __('plugins.importexport.native.cliError') . "\n";
 							echo __('plugins.importexport.native.export.error.paperNotFound', array('paperId' => $paperId)) . "\n\n";
 							return;
@@ -339,17 +345,53 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 						$trackDao =& DAORegistry::getDAO('TrackDAO');
 						$track =& $trackDao->getTrack($publishedPaper->getTrackId());
 
-						if (!$this->exportPaper($schedConf, $track, $publishedPaper, $xmlFile)) {
+						if (!$this->exportPaper($schedConf, $track, $publishedPaper, $xmlFile, $opts)) {
 							echo __('plugins.importexport.native.cliError') . "\n";
 							echo __('plugins.importexport.native.export.error.couldNotWrite', array('fileName' => $xmlFile)) . "\n\n";
 						}
 						return;
 					case 'papers':
 						$results =& PaperSearch::formatResults($args);
-						if (!$this->exportPapers($results, $xmlFile)) {
+						if (!$this->exportPapers($results, $xmlFile, $opts)) {
 							echo __('plugins.importexport.native.cliError') . "\n";
 							echo __('plugins.importexport.native.export.error.couldNotWrite', array('fileName' => $xmlFile)) . "\n\n";
 						}
+						return;
+					case 'allPapers':
+						$outputDir = $xmlFile;
+						if (file_exists($outputDir) && !$opts['clobber']) {
+							echo "Directory exists, exiting";
+							return;
+						}
+						// make the directory, run exportPaper for each paper
+						mkdir($outputDir, 0777, true);
+						$res = $publishedPaperDao->retrieve("SELECT paper_id, sched_conf_id FROM `papers` ORDER BY `paper_id` ASC", false, false);
+						while (!$res->EOF) {
+							$paperId = intval($res->fields(0));
+							echo "Exporting Paper: " . $paperId . "\n";
+							$schedConfId = intval($res->fields(1));
+							date_default_timezone_set('America/Los_Angeles');
+							$publishedPaper =& $publishedPaperDao->getPublishedPaperByBestPaperId($schedConfId, $paperId);
+							$sc = $schedConfDao->getSchedConf($schedConfId);
+							$c = $conferenceDao->getConference($sc->getData("conferenceId"));
+							$scPath = $sc->getData("path");
+							$cPath = $c->getData("path");
+							if ($publishedPaper == null) {
+								echo __('plugins.importexport.native.cliError') . "\n";
+								echo __('plugins.importexport.native.export.error.paperNotFound', array('paperId' => $paperId)) . "\n\n";
+							} else {
+								$xmlFile = $outputDir . '/' . $cPath . '_' . $scPath . '_' . $paperId . '.xml';
+								$trackDao =& DAORegistry::getDAO('TrackDAO');
+								$track =& $trackDao->getTrack($publishedPaper->getTrackId());
+
+								if (!$this->exportPaper($schedConf, $track, $publishedPaper, $xmlFile, $opts)) {
+									echo __('plugins.importexport.native.cliError') . "\n";
+									echo __('plugins.importexport.native.export.error.couldNotWrite', array('fileName' => $xmlFile)) . "\n\n";
+								}
+							}
+							$res->moveNext();
+						}
+						echo "ok";
 						return;
 				}
 				break;
@@ -366,6 +408,40 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 			'pluginName' => $this->getName()
 		)) . "\n";
 	}
-}
 
+	/**
+	 * Pull out getopt style long options.
+	 * WARNING: This method is checked for by name in DepositPackage in the PLN plugin
+	 * to determine if options are supported!
+	 * @param &$args array
+	 * #param $optCodes array
+	 */
+	function parseOpts(&$args, $optCodes) {
+		$newArgs = [];
+		$opts = [];
+		$sticky = null;
+		foreach ($args as $arg) {
+			if ($sticky) {
+				$opts[$sticky] = $arg;
+				$sticky = null;
+				continue;
+			}
+			if (!(substr($arg, 0, 2) == '--')) {
+				$newArgs[] = $arg;
+				continue;
+			}
+			$opt = substr($arg, 2);
+			if (in_array($opt, $optCodes)) {
+				$opts[$opt] = true;
+				continue;
+			}
+			if (in_array($opt . ":", $optCodes)) {
+				$sticky = $opt;
+				continue;
+			}
+		}
+		$args = $newArgs;
+		return $opts;
+	}
+}
 ?>

@@ -54,7 +54,7 @@ class NativeExportDom {
 		return $root;
 	}
 
-	function &generatePaperDom(&$doc, &$schedConf, &$track, &$paper) {
+	function &generatePaperDom(&$doc, &$schedConf, &$track, &$paper, $opts = array()) {
 		$root =& XMLCustomWriter::createElement($doc, 'paper');
 
 		/* --- PaperID --- */
@@ -165,7 +165,7 @@ class NativeExportDom {
 
 		/* --- Galleys --- */
 		foreach ($paper->getGalleys() as $galley) {
-			$galleyNode =& NativeExportDom::generateGalleyDom($doc, $schedConf, $paper, $galley);
+			$galleyNode =& NativeExportDom::generateGalleyDom($doc, $schedConf, $paper, $galley, $opts);
 			if ($galleyNode !== null) XMLCustomWriter::appendChild($root, $galleyNode);
 			unset($galleyNode);
 
@@ -202,7 +202,7 @@ class NativeExportDom {
 		return $root;
 	}
 
-	function &generateGalleyDom(&$doc, &$schedConf, &$paper, &$galley) {
+	function &generateGalleyDom(&$doc, &$schedConf, &$paper, &$galley, $opts) {
 		$isHtml = $galley->isHTMLGalley();
 
 		import('file.PaperFileManager');
@@ -217,13 +217,24 @@ class NativeExportDom {
 		/* --- Galley file --- */
 		$fileNode =& XMLCustomWriter::createElement($doc, 'file');
 		XMLCustomWriter::appendChild($root, $fileNode);
-		$embedNode =& XMLCustomWriter::createChildWithText($doc, $fileNode, 'embed', base64_encode($paperFileManager->readFile($galley->getFileId())));
+		if (intval($galley->getFileId()) == 0) {
+			return $root;
+		}
 		$paperFile =& $paperFileDao->getPaperFile($galley->getFileId());
-		if (!$paperFile) return $paperFile; // Stupidity check
-		XMLCustomWriter::setAttribute($embedNode, 'filename', $paperFile->getOriginalFileName());
-		XMLCustomWriter::setAttribute($embedNode, 'encoding', 'base64');
-		XMLCustomWriter::setAttribute($embedNode, 'mime_type', $paperFile->getFileType());
 
+		if (array_key_exists('no-embed', $opts)) {
+			$galley->setData('type', 'public'); // otherwise missing penultimate part of file path
+			$hrefNode =& XMLCustomWriter::createElement($doc, 'href');
+			XMLCustomWriter::setAttribute($hrefNode, 'src', $galley->getFilePath());
+			XMLCustomWriter::setAttribute($hrefNode, 'mime_type', $paperFile->getFileType());
+			XMLCustomWriter::appendChild($fileNode, $hrefNode);
+		} else {
+			$embedNode =& XMLCustomWriter::createChildWithText($doc, $fileNode, 'embed', base64_encode($paperFileManager->readFile($galley->getFileId())));
+			if (!$paperFile) return $paperFile; // Stupidity check
+			XMLCustomWriter::setAttribute($embedNode, 'filename', $paperFile->getOriginalFileName());
+			XMLCustomWriter::setAttribute($embedNode, 'encoding', 'base64');
+			XMLCustomWriter::setAttribute($embedNode, 'mime_type', $paperFile->getFileType());
+		}
 		/* --- HTML-specific data: Stylesheet and/or images --- */
 
 		if ($isHtml) {
