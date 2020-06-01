@@ -365,22 +365,28 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 						}
 						// make the directory, run exportPaper for each paper
 						mkdir($outputDir, 0777, true);
-						$res = $publishedPaperDao->retrieve("SELECT paper_id, sched_conf_id FROM `papers` ORDER BY `paper_id` ASC", false, false);
+						$res = $publishedPaperDao->retrieve("SELECT paper_id, sched_conf_id, track_id FROM `papers` ORDER BY `paper_id` ASC", false, false);
 						while (!$res->EOF) {
 							$paperId = intval($res->fields(0));
 							echo "Exporting Paper: " . $paperId . "\n";
 							$schedConfId = intval($res->fields(1));
+							$trackId = intval($res->fields(2));
 							date_default_timezone_set('America/Los_Angeles');
 							$publishedPaper =& $publishedPaperDao->getPublishedPaperByBestPaperId($schedConfId, $paperId);
+							$track = $trackDao->getTrack($trackId);
 							$sc = $schedConfDao->getSchedConf($schedConfId);
 							$c = $conferenceDao->getConference($sc->getData("conferenceId"));
 							$scPath = $sc->getData("path");
 							$cPath = $c->getData("path");
+							$trackAbbrev = 'GEN';
+							if ($track) {
+								$trackAbbrev = $track->getData('abbrev', 'en_US');
+							}
 							if ($publishedPaper == null) {
 								echo __('plugins.importexport.native.cliError') . "\n";
 								echo __('plugins.importexport.native.export.error.paperNotFound', array('paperId' => $paperId)) . "\n\n";
 							} else {
-								$xmlFile = $outputDir . '/' . $cPath . '_' . $scPath . '_' . $paperId . '.xml';
+								$xmlFile = $outputDir . '/' . $cPath . '_' . $scPath . '_' . $trackAbbrev . '_' . $paperId . '.xml';
 								$trackDao =& DAORegistry::getDAO('TrackDAO');
 								$track =& $trackDao->getTrack($publishedPaper->getTrackId());
 
