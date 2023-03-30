@@ -218,6 +218,7 @@ class NativeExportDom {
 		$fileNode =& XMLCustomWriter::createElement($doc, 'file');
 		XMLCustomWriter::appendChild($root, $fileNode);
 		if (intval($galley->getFileId()) == 0) {
+			error_log('The galley ID ' . $galley->getId() . ' is missing a file reference, skipping');
 			return $root;
 		}
 		$paperFile =& $paperFileDao->getPaperFile($galley->getFileId());

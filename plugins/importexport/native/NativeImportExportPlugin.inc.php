@@ -75,8 +75,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 				$this->setBreadcrumbs(array(), true);
 				$publishedPaperDao =& DAORegistry::getDAO('PublishedPaperDAO');
 				$rangeInfo = Handler::getRangeInfo('papers');
-				// $paperIds = $publishedPaperDao->getPublishedPaperIdsAlphabetizedBySchedConf($conference->getId(), $schedConf->getId());
-				$paperIds = $publishedPaperDao->getPublishedPaperIdsAlphabetizedBySchedConf(1, 1);
+				$paperIds = $publishedPaperDao->getPublishedPaperIdsAlphabetizedBySchedConf($conference->getId(), $schedConf->getId());
 				$totalPapers = count($paperIds);
 				if ($rangeInfo->isValid()) $paperIds = array_slice($paperIds, $rangeInfo->getCount() * ($rangeInfo->getPage()-1), $rangeInfo->getCount());
 				import('core.VirtualArrayIterator');
@@ -364,14 +363,14 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 							return;
 						}
 						// make the directory, run exportPaper for each paper
-						mkdir($outputDir, 0777, true);
+						import('file.FileManager');
+						FileManager::mkdirtree($outputDir);
 						$res = $publishedPaperDao->retrieve("SELECT paper_id, sched_conf_id, track_id FROM `papers` ORDER BY `paper_id` ASC", false, false);
 						while (!$res->EOF) {
 							$paperId = intval($res->fields(0));
 							echo "Exporting Paper: " . $paperId . "\n";
 							$schedConfId = intval($res->fields(1));
 							$trackId = intval($res->fields(2));
-							date_default_timezone_set('America/Los_Angeles');
 							$publishedPaper =& $publishedPaperDao->getPublishedPaperByBestPaperId($schedConfId, $paperId);
 							$track = $trackDao->getTrack($trackId);
 							$sc = $schedConfDao->getSchedConf($schedConfId);
@@ -397,7 +396,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 							}
 							$res->moveNext();
 						}
-						echo "ok";
+						echo "Export finished";
 						return;
 				}
 				break;
