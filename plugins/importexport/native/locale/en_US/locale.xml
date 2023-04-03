@@ -21,6 +21,7 @@ Commands:
 	import [xmlFileName] [conference_path] [sched_conf_path] [user_name] ...
 	export [xmlFileName] [conference_path] [sched_conf_path] papers [paperId1] [paperId2] ...
 	export [xmlFileName] [conference_path] [sched_conf_path] paper [paperId]
+	export [directory] allPapers
 
 Additional parameters are required for importing data as follows, depending
 on the root node of the XML document.

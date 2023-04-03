@@ -26,7 +26,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 	 * Called as a plugin is registered to the registry
 	 * @param $category String Name of category plugin was registered to
 	 * @return boolean True iff plugin initialized successfully; if false,
-	 *	the plugin will not be registered.
+	 * 	the plugin will not be registered.
 	 */
 	function register($category, $path) {
 		$success = parent::register($category, $path);
@@ -231,30 +231,32 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 	/**
 	 * Execute import/export tasks using the command-line interface.
 	 * @param $args Parameters to the plugin
-	 */
+	 */ 
 	function executeCLI($scriptName, &$args) {
 		$opts = $this->parseOpts($args, ['no-embed', 'use-file-urls', 'clobber']);
 		$command = array_shift($args);
 		$xmlFile = array_shift($args);
-		$conferencePath = array_shift($args);
-		$schedConfPath = array_shift($args);
 
 		$conferenceDao =& DAORegistry::getDAO('ConferenceDAO');
 		$schedConfDao =& DAORegistry::getDAO('SchedConfDAO');
 		$trackDao =& DAORegistry::getDAO('TrackDAO');
 		$userDao =& DAORegistry::getDAO('UserDAO');
 		$publishedPaperDao =& DAORegistry::getDAO('PublishedPaperDAO');
+		if ($command !== 'export' || empty($args[0]) || $args[0] !== 'allPapers') {
+			$conferencePath = array_shift($args);
+			$schedConfPath = array_shift($args);
 
-		$conference =& $conferenceDao->getConferenceByPath($conferencePath);
-		if ($conference) $schedConf =& $schedConfDao->getSchedConfByPath($schedConfPath, $conference->getId());
+			$conference =& $conferenceDao->getConferenceByPath($conferencePath);
+			if ($conference) $schedConf =& $schedConfDao->getSchedConfByPath($schedConfPath, $conference->getId());
 
-		if (!$conference || !$schedConfPath) {
-			if ($conferencePath != '') {
-				echo __('plugins.importexport.native.cliError') . "\n";
-				echo __('plugins.importexport.native.error.unknownConference', array('conferencePath' => $conferencePath, 'schedConfPath' => $schedConfPath)) . "\n\n";
+			if ( !$conference || !$schedConfPath) {
+				if ($conferencePath != '') {
+					echo __('plugins.importexport.native.cliError') . "\n";
+					echo __('plugins.importexport.native.error.unknownConference', array('conferencePath' => $conferencePath, 'schedConfPath' => $schedConfPath)) . "\n\n";
+				}
+				$this->usage($scriptName);
+				return;
 			}
-			$this->usage($scriptName);
-			return;
 		}
 
 		$this->import('NativeImportDom');
@@ -396,7 +398,7 @@ class NativeImportExportPlugin extends ImportExportPlugin {
 							}
 							$res->moveNext();
 						}
-						echo "Export finished";
+						echo __('common.completed');
 						return;
 				}
 				break;
